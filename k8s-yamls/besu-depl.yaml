@@ -12,8 +12,9 @@ spec:
       labels:
         app: besu-node
     spec:
-      nodeSelector:
-        cloud.google.com/gke-nodepool: zhejiang-vm
+      # # Set this according to your env if any
+      # nodeSelector:
+      #   cloud.google.com/gke-nodepool:
 
       initContainers:
         - name: set-zhejiang-genesis

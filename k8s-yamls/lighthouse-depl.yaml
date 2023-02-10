@@ -12,8 +12,9 @@ spec:
       labels:
         app: lighthouse-node
     spec:
-      nodeSelector:
-        cloud.google.com/gke-nodepool: zhejiang-vm
+      # # Set this according to your env if any
+      # nodeSelector:
+      #   cloud.google.com/gke-nodepool:
 
       containers:
         - name: lighthouse-bn
