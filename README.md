@@ -48,7 +48,7 @@ I initially tried out Geth+Lighthouse, but as many reported, there currently see
 
 ## Interact with the clients
 
-An exploration with the new clients and withdrawals can be found here:
+An exploration with the new clients and withdrawals can be found here: https://mirror.xyz/daishioubu.eth/hyIn44oruz7FtezwhZV6EA5jiPSaq5lvOZQ4OY8VfGY
 
 ## Reference
 
