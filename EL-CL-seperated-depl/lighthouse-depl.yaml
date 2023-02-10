@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lighthouse-depl
+  namespace: zhejiang-testnet
+spec:
+  selector:
+    matchLabels:
+      app: lighthouse-node
+  template:
+    metadata:
+      labels:
+        app: lighthouse-node
+    spec:
+      nodeSelector:
+        cloud.google.com/gke-nodepool: zhejiang-vm
+
+      containers:
+        - name: lighthouse-bn
+          image: 108356037/zhejiang-lighthouse:v0.2.0
+          imagePullPolicy: Always
+
+          command:
+            - "./entrypoint.sh"
+
+          ports:
+            - containerPort: 5052
+            - containerPort: 5051
+
+          volumeMounts:
+            - mountPath: /jwt/jwtsecret
+              name: el-cl-jwt
+              readOnly: true
+            - mountPath: /root/.lighthouse
+              name: lighthouse-db
+
+          env:
+            - name: EXEC_ENDPOINT_HOST
+              value: besu-engine-srv
+            - name: EXEC_ENDPOINT_PORT
+              value: "8551"
+
+      volumes:
+        - name: el-cl-jwt
+          secret:
+            secretName: el-cl-jwt-secret
+        - name: lighthouse-db
+          persistentVolumeClaim:
+            claimName: lighthouse-pvc
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: lighthouse-pvc
+spec:
+  storageClassName: premium-rwo
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
