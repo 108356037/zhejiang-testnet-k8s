@@ -1,0 +1,110 @@
+version: "3.7"
+
+services:
+  geth-pruning:
+    image: ethereum/client-go:stable
+    container_name: geth-pruning
+    restart: "no"
+    env_file: .env
+    command: "snapshot prune-state"
+    volumes:
+      - ./geth-data:/root/.ethereum
+  geth:
+    image: ethereum/client-go:stable
+    container_name: geth
+    restart: always
+    env_file: .env
+    command:
+      - --sepolia
+      - --maxpeers
+      - "50"
+      - --cache
+      - "10629"
+      - --port
+      - "${P2P_PORT}"
+      - --nat
+      - "any"
+      - --http
+      - --http.addr
+      - "0.0.0.0"
+      - --http.port
+      - "${HTTP_PORT}"
+      - --http.corsdomain=*
+      - --http.vhosts=*
+      - --http.api
+      - "eth,net,web3,txpool"
+      - --ws
+      - --ws.addr
+      - "0.0.0.0"
+      - --ws.port
+      - "${WS_PORT}"
+      - --ws.origins=*
+      - --ws.api
+      - "eth,net,web3,txpool"
+      - --txpool.locals
+      - "${TX_LOCAL_ADDR}"
+      - --txpool.accountslots
+      - "32"
+      - --txpool.globalslots
+      - "8192"
+      - --txpool.accountqueue
+      - "128"
+      - --txpool.globalqueue
+      - "2048"
+      - --rpc.gascap
+      - "0"
+      - --rpc.txfeecap
+      - "0"
+      - --authrpc.addr
+      - "0.0.0.0"
+      - --authrpc.port
+      - "${AUTH_PORT}"
+      - --authrpc.jwtsecret
+      - "/secrets/jwtsecret"
+      - --authrpc.vhosts=*
+      - --bootnodes
+      - "enode://ec66ddcf1a974950bd4c782789a7e04f8aa7110a72569b6e65fcd51e937e74eed303b1ea734e4d19cfaec9fbff9b6ee65bf31dcb50ba79acce9dd63a6aca61c7@52.14.151.177:30303"
+    ports:
+      - ${HTTP_PORT}:${HTTP_PORT}
+      - ${WS_PORT}:${WS_PORT}
+      - ${P2P_PORT}:${P2P_PORT}
+    volumes:
+      - ./geth-data:/root/.ethereum
+      - ./secrets:/secrets
+    stop_grace_period: 3m30s
+    stop_signal: SIGINT
+    healthcheck:
+      test: wget -nv -t1 --spider 'http://127.0.0.1:${HTTP_PORT}/' || exit 1
+      interval: 5s
+      timeout: 10s
+      retries: 3
+
+  lighthouse-mainnet:
+    image: sigp/lighthouse:latest-modern
+    hostname: lighthouse-mainnet
+    restart: unless-stopped
+    command: |
+      lighthouse beacon_node
+      --network sepolia
+      --terminal-total-difficulty-override 17000000000000000
+      --eth1-endpoints $RPC_URL
+      --datadir /home/.eth2/beaconchaindata
+      --discovery-port ${CL_P2P_PORT}
+      --port ${CL_P2P_PORT}
+      --http
+      --http-address 0.0.0.0
+      --http-port ${CL_HTTP_PORT}
+      --enr-address $PUBLIC_IP
+      --enr-udp-port ${CL_P2P_PORT}
+      --target-peers $TARGET_PEERS
+      --debug-level $LOG_LEVEL
+      --execution-endpoint $EXECUTION_ENDPOINT
+      --execution-jwt "/secrets/jwtsecret"
+      --checkpoint-sync-url $CHECKPOINT_RPC_URL
+    ports:
+      - '${CL_P2P_PORT}:${CL_P2P_PORT}/tcp'
+      - '${CL_P2P_PORT}:${CL_P2P_PORT}/udp'
+      # - '${CL_HTTP_PORT}:${CL_HTTP_PORT}'
+    volumes:
+      - ./lighthouse-data:/home/.eth2/beaconchaindata
+      - ./secrets:/secrets

@@ -1,0 +1,136 @@
+version: "3.7"
+
+services:
+  geth-pruning:
+    image: ethereum/client-go:stable
+    container_name: geth-pruning
+    restart: "no"
+    env_file: .env
+    command: "snapshot prune-state"
+    volumes:
+      - ./geth-data:/root/.ethereum
+  geth:
+    image: ethereum/client-go:stable
+    container_name: geth
+    restart: always
+    env_file: .env
+    command:
+      - --maxpeers
+      - "50"
+      - --cache
+      - "10629"
+      - --port
+      - "${P2P_PORT}"
+      - --nat
+      - "any"
+      - --http
+      - --http.addr
+      - "0.0.0.0"
+      - --http.port
+      - "${HTTP_PORT}"
+      - --http.rpcprefix
+      - "/"
+      - --http.corsdomain=*
+      - --http.vhosts=*
+      - --http.api
+      - "eth,net,web3,txpool"
+      - --ws
+      - --ws.addr
+      - "0.0.0.0"
+      - --ws.port
+      - "${WS_PORT}"
+      - --ws.rpcprefix
+      - "/"
+      - --ws.origins=*
+      - --ws.api
+      - "eth,net,web3,txpool"
+      - --txpool.locals
+      - "${TX_LOCAL_ADDR}"
+      - --txpool.accountslots
+      - "32"
+      - --txpool.globalslots
+      - "8192"
+      - --txpool.accountqueue
+      - "128"
+      - --txpool.globalqueue
+      - "2048"
+      - --rpc.gascap
+      - "0"
+      - --rpc.txfeecap
+      - "0"
+      - --authrpc.addr
+      - "0.0.0.0"
+      - --authrpc.port
+      - "${AUTH_PORT}"
+      - --authrpc.jwtsecret
+      - "/secrets/jwtsecret"
+      - --authrpc.vhosts=*
+    ports:
+      # - ${HTTP_PORT}:${HTTP_PORT}
+      # - ${WS_PORT}:${WS_PORT}
+      - ${P2P_PORT}:${P2P_PORT}
+    volumes:
+      - ./geth-data:/root/.ethereum
+      - ./secrets:/secrets
+    stop_grace_period: 3m30s
+    stop_signal: SIGINT
+    healthcheck:
+      test: wget -nv -t1 --spider 'http://127.0.0.1:${HTTP_PORT}/' || exit 1
+      interval: 5s
+      timeout: 10s
+      retries: 3
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.geth-http.middlewares=geth-http-acl"
+      - "traefik.http.middlewares.geth-http.headers.customrequestheaders.Access-Control-Allow-Origin=*"
+      - "traefik.http.middlewares.geth-http-acl.ipwhitelist.sourcerange=127.0.0.1/32, ${ALLOW_FROM}"
+      - "traefik.http.routers.geth-http.service=geth-http"
+      - "traefik.http.routers.geth-http.rule=Host(`${DOMAIN}`) && Path(`/geth-http/`)"
+      - "traefik.http.routers.geth-http.entrypoints=websecure"
+      - "traefik.http.routers.geth-http.tls.certresolver=myresolver"
+      - "traefik.http.services.geth-http.loadbalancer.server.port=${HTTP_PORT}"
+      - "traefik.http.routers.geth-ws.middlewares=geth-ws-acl"
+      - "traefik.http.middlewares.geth-ws.headers.customrequestheaders.Access-Control-Allow-Origin=*"
+      - "traefik.http.middlewares.geth-ws-acl.ipwhitelist.sourcerange=127.0.0.1/32, ${ALLOW_FROM}"
+      - "traefik.http.routers.geth-ws.service=geth-ws"
+      - "traefik.http.routers.geth-ws.rule=Host(`${DOMAIN}`) && Path(`/geth-ws/`)"
+      - "traefik.http.routers.geth-ws.entrypoints=websecure"
+      - "traefik.http.routers.geth-ws.tls.certresolver=myresolver"
+      - "traefik.http.services.geth-ws.loadbalancer.server.port=${WS_PORT}"
+    networks:
+      - rpc
+
+  lighthouse-mainnet:
+    image: sigp/lighthouse:latest-modern
+    hostname: lighthouse-mainnet
+    restart: unless-stopped
+    command: |
+      lighthouse beacon_node
+      --network mainnet
+      --eth1-endpoints $RPC_URL
+      --datadir /home/.eth2/beaconchaindata
+      --discovery-port ${CL_P2P_PORT}
+      --port ${CL_P2P_PORT}
+      --http
+      --http-address 0.0.0.0
+      --http-port ${CL_HTTP_PORT}
+      --enr-address $PUBLIC_IP
+      --enr-udp-port ${CL_P2P_PORT}
+      --target-peers $TARGET_PEERS
+      --debug-level $LOG_LEVEL
+      --execution-endpoint $EXECUTION_ENDPOINT
+      --execution-jwt "/secrets/jwtsecret"
+    # --checkpoint-sync-url $CHECKPOINT_RPC_URL
+    ports:
+      - '${CL_P2P_PORT}:${CL_P2P_PORT}/tcp'
+      - '${CL_P2P_PORT}:${CL_P2P_PORT}/udp'
+      # - '${CL_HTTP_PORT}:${CL_HTTP_PORT}'
+    volumes:
+      - ./lighthouse-data:/home/.eth2/beaconchaindata
+      - ./secrets:/secrets
+    networks:
+      - rpc
+
+networks:
+  rpc:
+    name: rpc-shared-network
